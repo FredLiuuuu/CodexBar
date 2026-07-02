@@ -1,3 +1,4 @@
+import Foundation
 import SweetCookieKit
 import Testing
 @testable import CodexBarCore
@@ -8,12 +9,55 @@ struct BrowserCookieOrderStatusStringTests {
     func `codex cookie import order keeps firefox ahead of extra chromium browsers`() {
         let order = ProviderDefaults.metadata[.codex]?.browserCookieOrder ?? Browser.defaultImportOrder
         #expect(Array(order.prefix(3)) == [.safari, .chrome, .firefox])
+        #expect(!order.contains(.comet))
     }
 
     @Test
-    func `automatic cookie import includes newly supported chromium browsers`() {
+    func `full cookie import order retains newly supported chromium browsers`() throws {
         #expect(Browser.defaultImportOrder.contains(.comet))
         #expect(Browser.defaultImportOrder.contains(.yandex))
+        let fullOrder = try #require(ProviderBrowserCookieDefaults.fullImportOrder)
+        #expect(fullOrder.contains(.comet))
+        #expect(fullOrder.contains(.yandex))
+    }
+
+    @Test
+    func `automatic cookie import defaults exclude broad chromium browsers`() throws {
+        let order = try #require(ProviderBrowserCookieDefaults.defaultImportOrder)
+        #expect(order == [.safari, .chrome, .firefox])
+        #expect(!order.contains(.comet))
+        #expect(!order.contains(.yandex))
+    }
+
+    @Test
+    func `browser cookie import allowlist defaults to privacy first browsers`() {
+        let suite = UserDefaults(suiteName: "BrowserCookieOrderLabelTests-default-allowlist")!
+        suite.removeObject(forKey: BrowserCookieImportAllowlist.defaultsKey)
+        #expect(BrowserCookieImportAllowlist.allowedBrowsers(userDefaults: suite) == [.safari, .chrome, .firefox])
+
+        let filtered = BrowserCookieImportAllowlist.filter(
+            [.safari, .chrome, .firefox, .comet, .yandex],
+            userDefaults: suite)
+        #expect(filtered == [.safari, .chrome, .firefox])
+    }
+
+    @Test
+    func `browser cookie import allowlist can explicitly opt into comet`() {
+        let suite = UserDefaults(suiteName: "BrowserCookieOrderLabelTests-comet-opt-in")!
+        suite.set([Browser.chrome.rawValue, Browser.comet.rawValue], forKey: BrowserCookieImportAllowlist.defaultsKey)
+        defer { suite.removeObject(forKey: BrowserCookieImportAllowlist.defaultsKey) }
+
+        let filtered = BrowserCookieImportAllowlist.filter(
+            [.safari, .chrome, .firefox, .comet, .yandex],
+            userDefaults: suite)
+        #expect(filtered == [.chrome, .comet])
+    }
+
+    @Test
+    func `claude automatic cookies use privacy first default browser order`() throws {
+        let order = try #require(ProviderDefaults.metadata[.claude]?.browserCookieOrder)
+        #expect(order == ProviderBrowserCookieDefaults.defaultImportOrder)
+        #expect(!order.contains(.comet))
     }
 
     @Test
@@ -41,11 +85,11 @@ struct BrowserCookieOrderStatusStringTests {
     }
 
     @Test
-    func `opencode go automatic cookies use full provider browser order`() {
+    func `opencode go automatic cookies use privacy first provider browser order`() {
         let order = OpenCodeWebCookieSupport.automaticImportOrder(provider: .opencodego)
         #expect(order == ProviderDefaults.metadata[.opencodego]?.browserCookieOrder)
-        #expect(order.contains(.edge))
         #expect(order.contains(.firefox))
+        #expect(!order.contains(.comet))
     }
 
     @Test

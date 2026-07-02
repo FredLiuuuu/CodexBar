@@ -1,3 +1,5 @@
+import Foundation
+
 #if os(macOS)
 import SweetCookieKit
 
@@ -15,7 +17,7 @@ extension [Browser] {
     ///
     /// This is intentionally stricter than "app installed": it aims to avoid unnecessary Keychain prompts.
     public func cookieImportCandidates(using detection: BrowserDetection) -> [Browser] {
-        let candidates = self.filter { browser in
+        let candidates = BrowserCookieImportAllowlist.filter(self).filter { browser in
             if KeychainAccessGate.isDisabled, browser.usesKeychainForCookieDecryption {
                 return false
             }
@@ -31,6 +33,26 @@ extension [Browser] {
 }
 
 #if os(macOS)
+public enum BrowserCookieImportAllowlist {
+    public static let defaultsKey = "allowedBrowserCookieImports"
+    public static let defaultBrowsers: [Browser] = [.safari, .chrome, .firefox]
+
+    public static func allowedBrowsers(userDefaults: UserDefaults = .standard) -> [Browser] {
+        guard let rawValues = userDefaults.stringArray(forKey: Self.defaultsKey) else {
+            return Self.defaultBrowsers
+        }
+        return rawValues.compactMap(Browser.init(rawValue:))
+    }
+
+    public static func filter(
+        _ browsers: [Browser],
+        userDefaults: UserDefaults = .standard) -> [Browser]
+    {
+        let allowed = Set(Self.allowedBrowsers(userDefaults: userDefaults))
+        return browsers.filter { allowed.contains($0) }
+    }
+}
+
 extension Browser {
     var usesKeychainForCookieDecryption: Bool {
         switch self {
@@ -54,6 +76,22 @@ extension Browser {
     }
 }
 #else
+public enum BrowserCookieImportAllowlist {
+    public static let defaultsKey = "allowedBrowserCookieImports"
+    public static let defaultBrowsers: [Browser] = []
+
+    public static func allowedBrowsers(userDefaults _: UserDefaults = .standard) -> [Browser] {
+        Self.defaultBrowsers
+    }
+
+    public static func filter(
+        _ browsers: [Browser],
+        userDefaults _: UserDefaults = .standard) -> [Browser]
+    {
+        browsers
+    }
+}
+
 extension Browser {
     var usesKeychainForCookieDecryption: Bool {
         false

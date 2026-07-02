@@ -199,9 +199,19 @@ public enum ProviderDefaults {
 }
 
 public enum ProviderBrowserCookieDefaults {
-    public static var defaultImportOrder: BrowserCookieImportOrder? {
+    /// Broad browser support remains available for explicit opt-in paths, but automatic imports should not
+    /// touch every Chromium-family browser by default because each one can trigger its own Safe Storage prompt.
+    public static var fullImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
         Browser.defaultImportOrder
+        #else
+        nil
+        #endif
+    }
+
+    public static var defaultImportOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari, .chrome, .firefox]
         #else
         nil
         #endif
@@ -210,18 +220,20 @@ public enum ProviderBrowserCookieDefaults {
     /// Safari first for Cursor: active sessions often live only there, and Chromium profiles may carry stale tokens.
     public static var cursorCookieImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.safari] + Browser.defaultImportOrder.filter { $0 != .safari }
+        let preferredPrefix: [Browser] = [.safari, .chrome, .firefox]
+        return preferredPrefix + Browser.defaultImportOrder.filter { browser in
+            browser == .edge && !preferredPrefix.contains(browser)
+        }
         #else
         nil
         #endif
     }
 
     /// Preserve the legacy Codex prompt behavior: prefer Safari/Chrome/Firefox before
-    /// probing additional Chromium variants that may trigger Safe Storage prompts.
+    /// probing any additional Chromium variants that may trigger Safe Storage prompts.
     public static var codexCookieImportOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        let preferredPrefix: [Browser] = [.safari, .chrome, .firefox]
-        return preferredPrefix + Browser.defaultImportOrder.filter { !preferredPrefix.contains($0) }
+        self.defaultImportOrder
         #else
         nil
         #endif
